@@ -28,9 +28,9 @@ Docker-desktop with Kubernetes enabled.(Windows).
 
 ## How to use locally
 ### 1. Clone the repo:-
-    $ git clone https://github.com/akbhatisain/Chat-Socket.io
+    $ git clone https://github.com/sudotechadmin/Chat-socket
 ### 2. Switch to project directory:
-    $ cd Chat-Socket.io
+    $ cd Chat-Socket
 ### 3. Setup the project:
     $ npm i
     $ npm start
