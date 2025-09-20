@@ -1,82 +1,70 @@
 pipeline {
-  agent any
-
-  environment {
-    DOCKERHUB_REPO = "https://github.com/sudotechadmin/Chat-socket"
-    IMAGE_TAG = "${env.BUILD_NUMBER}"
+  agent { label 'linux' } 
+  options {
+    skipDefaultCheckout(true)
+    ansiColor('xterm')
+    timestamps()
   }
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: "${env.BUILD_NUMBER}", description: 'Tag for Docker image (override if needed)')
+  }
+  environment {
+    IMAGE_NAME = 'sudotechadmin/chatsocket-app' 
+    DOCKER_CREDENTIALS_ID = 'dockerhub'  
+ }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
+        sh 'ls -la'
       }
     }
 
-    stage('Install') {
+    stage('Docker Info') {
       steps {
-        sh 'npm ci'
+        sh 'docker --version || true'
+        sh 'docker info || true'
       }
     }
 
-    stage('Test (safe)') {
+    stage('Build Image') {
       steps {
-        script {
-          // run tests if defined, but don't fail the job if tests not present
-          def rc = sh(script: 'npm test || true', returnStatus: true)
-          if (rc != 0) {
-            echo "npm test returned non-zero. Either tests failed or none defined — continuing."
-          } else {
-            echo "npm test succeeded."
-          }
+        sh """
+          docker build --pull -t ${IMAGE_NAME}:${params.IMAGE_TAG} .
+        """
+      }
+    }
+
+    stage('Docker Login') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIALS_ID,
+                                          usernameVariable: 'DOCKER_USER',
+                                          passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
         }
       }
     }
 
-    stage('Build Docker image') {
+    stage('Push Image') {
       steps {
-        script {
-          // requires Docker available on the agent
-          dockerImage = docker.build("${env.DOCKERHUB_REPO}:${env.IMAGE_TAG}")
-        }
+        sh "docker push ${IMAGE_NAME}:${params.IMAGE_TAG}"
       }
     }
 
-    stage('Push to Docker Hub') {
+    stage('Cleanup') {
       steps {
-        script {
-          // docker.withRegistry accepts registry URL and credentialsId
-          docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
-            dockerImage.push()
-            // also push 'latest'
-            dockerImage.push('latest')
-          }
-        }
-      }
-    }
-
-    stage('Deploy (local) — optional') {
-      when {
-        expression { return true } // change to conditions you want
-      }
-      steps {
-        script {
-          // This will run docker commands on the Jenkins agent/host.
-          // It stops existing container (if any) and runs the newly pushed image.
-          sh '''
-            set +e
-            docker rm -f chat-app || true
-            docker pull ${DOCKERHUB_REPO}:${IMAGE_TAG}
-            docker run -d --name chat-app -p 3001:3000 ${DOCKERHUB_REPO}:${IMAGE_TAG}
-          '''
-        }
+        sh "docker image prune -af || true"
       }
     }
   }
 
   post {
-    always {
-      echo "Pipeline finished: ${currentBuild.currentResult}"
+    success {
+      echo "SUCCESS: pushed ${IMAGE_NAME}:${params.IMAGE_TAG}"
+    }
+    failure {
+      echo "FAILED: see console for details"
     }
   }
 }
