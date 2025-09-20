@@ -10,7 +10,8 @@ pipeline {
   }
   environment {
     IMAGE_NAME = 'sudotechadmin/chatsocket-app' 
-    DOCKER_CREDENTIALS_ID = 'dockerhub'  
+    DOCKER_CREDENTIALS_ID = 'dockerhub'
+    CONTAINER_NAME = 'chatsocket-app'
  }
 
   stages {
@@ -52,11 +53,22 @@ pipeline {
       }
     }
 
-    stage('Cleanup') {
+    stage('Deploy Container') {
       steps {
-        sh "docker image prune -af || true"
-      }
-    }
+        script {       // Stop & remove old container if running
+          sh """
+              if [ \$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
+                  docker stop ${CONTAINER_NAME}
+                  docker rm ${CONTAINER_NAME}
+              fi
+          """
+ // Run new container from latest image
+          sh """
+              docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:latest
+          """
+                }
+            }
+        }
   }
 
   post {
