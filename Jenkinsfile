@@ -3,7 +3,7 @@ pipeline {
 
   options {
     skipDefaultCheckout(true)
-    // ansiColor('xterm')   // <-- enable only if Pipeline: ANSI Color plugin is installed
+    ansiColor('xterm')   // <-- enable only if Pipeline: ANSI Color plugin is installed
     timestamps()
   }
 
